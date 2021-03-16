@@ -11,15 +11,26 @@
 import json
 import re
 import os
+import time
 import sysnsrc as sy
 
 # contents = sy.SqLiteContents(dbpath=r'C:\projects\killer\kk.db')
-contents = sy.SqLiteContents(dbpath=r'D:\cmp_srv\utils\utils_fixer\py\publikator\nsrc.db')
+contents = sy.SqLiteContents(dbpath=r'D:\utils\py\kk\kk.db')
 #
 typez = {'Постановление': 'Постановлением', 'Распоряжение': 'Распоряжением', 'Решение': 'Решением',
          'Приказ': 'Приказом', 'Указ': 'Указом', 'Закон': 'Законом'}
 
-path1 = r'C:\projects\killer\400265525.nsr'
+color = '''
+ghbdtn
+
+!STYLE J 0 73 5
+     decor:{Font = { BackColor = clYellow }}yellow
+
+!STYLE J 0 73 5
+     decor:{Font = { BackColor = clRed }}red
+'''
+
+path1 = r'D:\utils\py\kk\400296598.nsr'
 killdoc = sy.NsrDoc([])
 killdoc.loadfromfile(path1)
 topic = killdoc.gettopic()
@@ -86,8 +97,15 @@ for index, line in enumerate(new_table):
         relive = name
         killed_doc = contents.find_doc({'date': date, 'code': code, 'relevation': relive, 'crop_garant_name': True})
         if killed_doc:
-            killed_name = killed_doc[0][3]
+            print(killed_doc[0])
+            try:
+                killed_name = killed_doc[0][3]
+            except Exception:
+                print(Exception)
+                continue
+            # print(killed_name)
             killed_name = killed_name[:killed_name.find('"О')]
+            # time.sleep(4)
             patchdata = {'killtopic': topic[0], 'killsub': sub, 'killdate': killdate, 'killname': killname,
                          'killed_name': killed_name, 'killed_topic': killed_doc[0][0]}
             if re.search('\((утратил|отменен|документ\s+утратил)', killed_doc[0][3]):
@@ -98,10 +116,19 @@ for index, line in enumerate(new_table):
             patchdata['cmt'] = cmt
             patchdata['fuscmt'] = fuscmt
             new_table[lnk_index] = chr(4) + new_table[lnk_index].strip() + chr(4) + killed_doc[0][0] + chr(4) + '\n'
+            percent = str(killed_doc[0][6])[:5]
+            print(percent)
+            if killed_doc[0][6] > 85:
+                color = 'decor:{Font = { BackColor = clLime }}'
+            elif 60 < killed_doc[0][6] < 85:
+                color = 'decor:{Font = { BackColor = clYellow }}'
+            else:
+                color = 'decor:{Font = { BackColor = clRed }}'
             value = ['!CELL 5000 1111 0 0',
-                     '!STYLE L 1 72 1', ';' + f'{killed_doc[0][6][:5]} ' + killed_doc[0][3].strip(),
+                     '!STYLE L 1 72 1', f'\x01{color}' + percent + ' ' + killed_doc[0][3].strip() + '\x01',
                      '!STYLE L 1 72 1', ';' + cmt,
                      '!CELLEND\n']
+            # print(value)
             new_table.insert(index, '\n'.join(value))
             skip = 1
             patch[killed_doc[0][0].strip()] = patchdata

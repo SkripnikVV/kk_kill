@@ -2406,21 +2406,30 @@ class SqLiteContents():
         if parameters.get('code'):
             sql += f' {get_flag(params)} dcd=?'
             params.append(parameters.get('code').upper())
-        if parameters.get('main'):
-            sql += f' {get_flag(params)} main=?'
-            params.append(parameters.get('date').upper())
+        if parameters.get('dmain'):
+            sql += f' {get_flag(params)} dmain=?'
+            params.append(parameters.get('dmain').upper())
         cursor.execute(sql, params)
         data = cursor.fetchall()
         reliv = parameters.get('relevation')
         if reliv:
+            max_relive = 0
+            max_item = None
             for i, item in enumerate(data):
                 item = list(item)
                 g_name = item[3]
                 if parameters.get('crop_garant_name'):
                     g_name = crop_garant_name(g_name)
                 percent = SM(None, reliv.upper(), g_name.upper()).ratio() * 100
-                item.extend([str(percent), reliv])
+                item.extend([percent, reliv])
+                if  percent >  max_relive:
+                    max_relive = percent
+                    max_item = tuple(item)
                 data[i] = tuple(item)
+            # data = [max_item]
+            if len(data) > 0:
+                return [max_item,]
+
         if len(data) > 0:
             return data
 
