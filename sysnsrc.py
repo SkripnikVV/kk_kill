@@ -2263,7 +2263,7 @@ def parsensrc(sqlqueue, filesqueue, ):
                     if src.find('|') > -1:
                         src = src[:src.find('|')]
                     if src.find('\\') > -1:
-                        src = src[src.rfind('\\'):]
+                        src = src[src.rfind('\\') + 1:]
                 rsm = re.search('!CODE (.+)', line)
                 if rsm:
                     dcd = rsm[1].upper()
@@ -2323,7 +2323,7 @@ def nsrc2sqlite(sqlqueue, dbpath):
     cursor.execute('PRAGMA synchronous = OFF')
     cursor.execute('PRAGMA journal_mode = OFF')
     cursor.execute("""CREATE TABLE CONTENTS
-                      (topic text, ddt text, dcd text, related text, dcnm text,
+                      (topic text, ddt text, dcd text, dcnm text, related text,
                       dmain text, dwarning text, dsrc text)""")
 
     proc_name = current_process().name
