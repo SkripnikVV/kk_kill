@@ -113,6 +113,7 @@ def printparam(param, value):
 def printerror(param, value):
     print(Fore.RED, param, Fore.LIGHTWHITE_EX, value, Style.RESET_ALL)
 
+
 # def pipeout(topic, target,)
 
 
@@ -761,6 +762,18 @@ def crop_garant_name(text):
     return text
 
 
+def get_date(text):
+    rsm = re.search('(\d\d)[\.|\\|/]+(\d\d)[\.|\\|/]+(\d\d\d\d)', text)
+    if rsm:
+        return f'{rsm[1]}/{rsm[2]}/{rsm[3]}'
+
+
+def get_code(text):
+    rsm = re.search('[N|№]+\s*(\S+)', text)
+    if rsm:
+        return rsm[1]
+
+
 def checkfatalerror(file):
     def checkheader(dinfo):
         publmain = None
@@ -1283,14 +1296,16 @@ class NsrDoc():
         level = 0
         result = []
         for i in range(from_pos, len(self.doc)):
-            if re.search('^!BLOCK\s+',self.doc[i]):
+            if re.search('^!BLOCK\s+', self.doc[i]):
                 level += 1
-            elif re.search('^!BLOCKEND',self.doc[i]):
+            elif re.search('^!BLOCKEND', self.doc[i]):
                 level -= 1
             result.append(self.doc[i])
             if level == 0:
                 break
         return result
+
+
 #
 
 
@@ -2206,6 +2221,8 @@ def parsensrc(sqlqueue, filesqueue, ):
         dcnm = 'Noname'
         dmain = 'Nomain'
         related = 'Norelated'
+        src = 'Nosrc'
+        warning = 'Nowarning'
         for line in lines:
             line = line.strip()
             if line == '':
@@ -2218,6 +2235,8 @@ def parsensrc(sqlqueue, filesqueue, ):
                 dcnm = 'Noname'
                 dmain = 'Nomain'
                 related = 'Norelated'
+                src = 'Nosrc'
+                warning = 'Nowarning'
             elif line[0] == '!':
                 rsm = re.search('^!TOPIC (\d+)', line)
                 if rsm:
@@ -2227,12 +2246,24 @@ def parsensrc(sqlqueue, filesqueue, ):
                     dcnm = 'Noname'
                     dmain = 'Nomain'
                     related = 'Norelated'
+                    src = 'Nosrc'
+                    warning = 'Nowarning'
                     skip = False
                 if skip == True:
                     continue
                 rsm = re.search('!RELATED (\d+)', line)
                 if rsm:
                     related = rsm[1]
+                rsm = re.search('!WARNING (\d+)', line)
+                if rsm:
+                    warning = rsm[1]
+                rsm = re.search('!SOURCE (.+)', line)
+                if rsm:
+                    src = rsm[1]
+                    if src.find('|') > -1:
+                        src = src[:src.find('|')]
+                    if src.find('\\') > -1:
+                        src = src[src.rfind('\\'):]
                 rsm = re.search('!CODE (.+)', line)
                 if rsm:
                     dcd = rsm[1].upper()
@@ -2251,7 +2282,7 @@ def parsensrc(sqlqueue, filesqueue, ):
                 rsm = re.search('!STYLE', line)
                 if rsm:
                     if skip == False and topic != None:
-                        report.append([topic, ddt, dcd, dcnm, related, dmain])
+                        report.append([topic, ddt, dcd, dcnm, related, dmain, warning, src])
                     skip = True
                     topic = None
                     dcd = 'Nocode'
@@ -2259,11 +2290,13 @@ def parsensrc(sqlqueue, filesqueue, ):
                     dcnm = 'Noname'
                     dmain = 'Nomain'
                     related = 'Norelated'
+                    src = 'Nosrc'
+                    warning = 'Nowarning'
             else:
                 continue
         if skip == False:
             if topic:
-                report.append([topic, ddt, dcd, dcnm, related, dmain])
+                report.append([topic, ddt, dcd, dcnm, related, dmain, warning, src])
         if len(report) > 0:
             sqlqueue.put(report)
             print(proc_name, 'осталось файлов:', filesqueue.qsize(), 'добавлено записей:', len(report))
@@ -2290,8 +2323,8 @@ def nsrc2sqlite(sqlqueue, dbpath):
     cursor.execute('PRAGMA synchronous = OFF')
     cursor.execute('PRAGMA journal_mode = OFF')
     cursor.execute("""CREATE TABLE CONTENTS
-                      (topic text, ddt text, dcd text, related text,
-                       dcnm text, dmain text)""")
+                      (topic text, ddt text, dcd text, related text, dcnm text,
+                      dmain text, dwarning text, dsrc text)""")
 
     proc_name = current_process().name
     opencount = 0
@@ -2312,7 +2345,7 @@ def nsrc2sqlite(sqlqueue, dbpath):
         else:
             topiccount = topiccount + len(data)
             print(proc_name, topiccount)
-            cursor.executemany('INSERT INTO contents VALUES (?,?,?,?,?,?)', data)
+            cursor.executemany('INSERT INTO contents VALUES (?,?,?,?,?,?,?,?)', data)
     print(proc_name, 'завершено')
     conn.commit()
     conn.close()
@@ -2386,6 +2419,22 @@ class SqLiteContents():
         conn.close()
         print('транзакция завершена')
 
+    def get_max_relive_doc(self, reliv, data, compare_self_names):
+        max_relive = 0
+        max_item = None
+        for i, item in enumerate(data):
+            item = list(item)
+            g_name = item[3]
+            if compare_self_names:
+                g_name = crop_garant_name(g_name)
+            percent = SM(None, reliv.upper(), g_name.upper()).ratio() * 100
+            item.extend([percent, reliv])
+            if percent > max_relive:
+                max_relive = percent
+                max_item = tuple(item)
+            data[i] = tuple(item)
+        return [max_item]
+
     def find_doc(self, parameters):
         def get_flag(params):
             if len(params) == 0:
@@ -2402,7 +2451,7 @@ class SqLiteContents():
             params.append(parameters.get('topic'))
         if parameters.get('date'):
             sql += f' {get_flag(params)} ddt=?'
-            params.append(parameters.get('date'))
+            params.append(parameters.get('date').replace('.', '/'))
         if parameters.get('code'):
             sql += f' {get_flag(params)} dcd=?'
             params.append(parameters.get('code').upper())
@@ -2413,25 +2462,63 @@ class SqLiteContents():
         data = cursor.fetchall()
         reliv = parameters.get('relevation')
         if reliv:
-            max_relive = 0
-            max_item = None
-            for i, item in enumerate(data):
-                item = list(item)
-                g_name = item[3]
-                if parameters.get('crop_garant_name'):
-                    g_name = crop_garant_name(g_name)
-                percent = SM(None, reliv.upper(), g_name.upper()).ratio() * 100
-                item.extend([percent, reliv])
-                if  percent >  max_relive:
-                    max_relive = percent
-                    max_item = tuple(item)
-                data[i] = tuple(item)
-            # data = [max_item]
-            if len(data) > 0:
-                return [max_item,]
-
+            data = self.get_max_relive_doc(reliv, data, True)
         if len(data) > 0:
             return data
+
+    def find_many_doc(self, find_data):
+        def get_flag(params):
+            if len(params) == 0:
+                return ' WHERE '
+            else:
+                return ' AND '
+
+        conn = sqlite3.connect(self.dbpath)  # или :memory: чтобы сохранить в RAM
+        cursor = conn.cursor()
+        for find_index, find_item in enumerate(find_data):
+            print(str(find_index * 100 / len(find_data))[:5])
+            sql = "SELECT * FROM CONTENTS"
+            parameters = find_item
+            params = []
+            if parameters.get('topic'):
+                sql += f' {get_flag(params)} topic=?'
+                params.append(parameters.get('topic'))
+            if parameters.get('date'):
+                sql += f' {get_flag(params)} ddt=?'
+                params.append(parameters.get('date').replace('.', '/'))
+            if parameters.get('code'):
+                sql += f' {get_flag(params)} dcd=?'
+                params.append(parameters.get('code').upper())
+            if parameters.get('dmain'):
+                sql += f' {get_flag(params)} dmain=?'
+                params.append(parameters.get('dmain').upper())
+            cursor.execute(sql, params)
+            data = cursor.fetchall()
+            reliv = parameters.get('relevation')
+            if reliv:
+                max_relive = 0
+                max_item = None
+                for i, item in enumerate(data):
+                    item = list(item)
+                    g_name = item[3]
+                    if parameters.get('crop_garant_name'):
+                        g_name = crop_garant_name(g_name)
+                    percent = SM(None, reliv.upper(), g_name.upper()).ratio() * 100
+                    item.extend([percent, reliv])
+                    if percent > max_relive:
+                        max_relive = percent
+                        max_item = tuple(item)
+                    data[i] = tuple(item)
+                if len(data) > 0:
+                    data = max_item
+
+            if len(data) > 0:
+                find_data[find_index]['relevation'] = data[6]
+                find_data[find_index]['main'] = data[5]
+                find_data[find_index]['topic'] = data[0]
+                find_data[find_index]['related'] = data[4]
+                find_data[find_index]['name'] = data[3]
+        return find_data
 
 
 if __name__ == '__main__':
