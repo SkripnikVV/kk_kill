@@ -1,0 +1,1 @@
+dbcontents.py D:\cmp_srv\data\contents\contents.db D:\cmp\nsk\00_PREPARENSRC\killtr\nsrc\*.nsr D:\cmp\mrk\00_PREPARENSRC\killtr\nsrc\*.nsr

@@ -2400,20 +2400,13 @@ class SqLiteContents():
         cursor = conn.cursor()
 
         dt1 = datetime.datetime.now()
-        cursor.execute('CREATE INDEX IF NOT EXISTS ddtidx ON CONTENTS (ddt)')
-        dt2 = datetime.datetime.now()
-        delta = dt2 - dt1
-        print('индексирование дат заняло:', delta.seconds)
+        indexs = ('ddt','dcd', 'topic', 'dmain', 'dwarning', 'dsrc')
+        for i in indexs:
 
-        cursor.execute('CREATE INDEX IF NOT EXISTS dcdidx ON CONTENTS (dcd)')
-        dt3 = datetime.datetime.now()
-        delta = dt3 - dt2
-        print('индексирование номеров заняло:', delta.seconds)
-
-        cursor.execute('CREATE INDEX IF NOT EXISTS gididx ON CONTENTS (topic)')
-        dt4 = datetime.datetime.now()
-        delta = dt4 - dt2
-        print('индексирование топиков заняло:', delta.seconds)
+            cursor.execute(f'CREATE INDEX IF NOT EXISTS {i}_idx ON CONTENTS ({i})')
+            dt2 = datetime.datetime.now()
+            delta = dt2 - dt1
+            print(f'индексирование {i} заняло:', delta.seconds)
 
         conn.commit()
         conn.close()
@@ -2480,6 +2473,10 @@ class SqLiteContents():
             sql = "SELECT * FROM CONTENTS"
             parameters = find_item
             params = []
+            if parameters.get('date') == None and parameters.get('code') == None:
+                parameters['name'] = 'skip'
+                print('skip:', find_item)
+                continue
             if parameters.get('topic'):
                 sql += f' {get_flag(params)} topic=?'
                 params.append(parameters.get('topic'))
@@ -2492,6 +2489,7 @@ class SqLiteContents():
             if parameters.get('dmain'):
                 sql += f' {get_flag(params)} dmain=?'
                 params.append(parameters.get('dmain').upper())
+            print('exec:', sql)
             cursor.execute(sql, params)
             data = cursor.fetchall()
             reliv = parameters.get('relevation')
@@ -2512,12 +2510,16 @@ class SqLiteContents():
                 if len(data) > 0:
                     data = max_item
 
-            if len(data) > 0:
-                find_data[find_index]['relevation'] = data[6]
+            if data and len(data) > 0:
+                find_data[find_index]['relevation'] = data[-2]
                 find_data[find_index]['main'] = data[5]
+                find_data[find_index]['warning'] = data[6]
+                find_data[find_index]['src'] = data[7]
                 find_data[find_index]['topic'] = data[0]
                 find_data[find_index]['related'] = data[4]
                 find_data[find_index]['name'] = data[3]
+            else:
+                find_data[find_index]['name'] = 'no result'
         return find_data
 
 

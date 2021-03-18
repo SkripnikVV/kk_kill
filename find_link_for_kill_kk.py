@@ -118,9 +118,9 @@ for index, line in enumerate(new_table):
             new_table[lnk_index] = chr(4) + new_table[lnk_index].strip() + chr(4) + killed_doc[0][0] + chr(4) + '\n'
             percent = str(killed_doc[0][6])[:5]
             print(percent)
-            if killed_doc[0][6] > 85:
+            if killed_doc[0][-2] > 85:
                 color = 'decor:{Font = { BackColor = clLime }}'
-            elif 60 < killed_doc[0][6] < 85:
+            elif 60 < killed_doc[0][-2] < 85:
                 color = 'decor:{Font = { BackColor = clYellow }}'
             else:
                 color = 'decor:{Font = { BackColor = clRed }}'
